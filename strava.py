@@ -4,21 +4,24 @@ import os
 import arrow
 import httpx
 import streamlit as st
-import sweat
 from bokeh.models.widgets import Div
 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 APP_URL = os.environ["APP_URL"]
 STRAVA_CLIENT_ID = os.environ["STRAVA_CLIENT_ID"]
 STRAVA_CLIENT_SECRET = os.environ["STRAVA_CLIENT_SECRET"]
 STRAVA_AUTHORIZATION_URL = "https://www.strava.com/oauth/authorize"
 STRAVA_API_BASE_URL = "https://www.strava.com/api/v3"
+SCOPE = "activity:read_all,profile:read_all,activity:write"
 DEFAULT_ACTIVITY_LABEL = "NO_ACTIVITY_SELECTED"
 STRAVA_ORANGE = "#fc4c02"
 
 
 
-@st.cache(show_spinner=False)
+@st.cache_data(show_spinner=False)
 def load_image_as_base64(image_path):
     with open(image_path, "rb") as f:
         contents = f.read()
@@ -42,7 +45,7 @@ def authorization_url():
             "redirect_uri": APP_URL,
             "response_type": "code",
             "approval_prompt": "auto",
-            "scope": "activity:read_all"
+            "scope": SCOPE
         }
     )
 
@@ -102,7 +105,7 @@ def logged_in_title(strava_auth, header=None):
     col.markdown(f"*Welcome, {first_name} {last_name}!*")
 
 
-@st.cache(show_spinner=False, suppress_st_warning=True)
+@st.cache_data(show_spinner=False)
 def exchange_authorization_code(authorization_code):
     response = httpx.post(
         url="https://www.strava.com/oauth/token",
@@ -148,15 +151,41 @@ def authenticate(header=None, stop_if_unauthenticated=True):
 
 
 def header():
-    col1, col2, col3 = st.beta_columns(3)
+    col1, col2, col3 = st.columns(3)
 
     with col3:
         strava_button = st.empty()
 
     return col1, col2, col3, strava_button
 
+@st.cache_data(show_spinner=False)
+def get_athlete_detail(auth, page=1):
+    access_token = auth["access_token"]
+    response = httpx.get(
+        url=f"{STRAVA_API_BASE_URL}/athlete",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+        },
+    )
 
-@st.cache(show_spinner=False)
+    return response.json()
+
+def get_shoes(athlete):
+    print(athlete)
+    return athlete["shoes"]
+
+def get_activity(activity_id, auth):
+    access_token = auth["access_token"]
+    response = httpx.get(
+        url=f"{STRAVA_API_BASE_URL}/activities/{activity_id}",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+        },
+    )
+
+    return response.json()
+
+@st.cache_data(show_spinner=False)
 def get_activities(auth, page=1):
     access_token = auth["access_token"]
     response = httpx.get(
@@ -171,6 +200,8 @@ def get_activities(auth, page=1):
 
     return response.json()
 
+# /activities/{id}/zones
+
 
 def activity_label(activity):
     if activity["name"] == DEFAULT_ACTIVITY_LABEL:
@@ -182,9 +213,47 @@ def activity_label(activity):
 
     return f"{activity['name']} - {date_string} ({human_readable_date})"
 
+def select_strava_shoes(auth):
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        page = st.number_input(
+            label="Shoes page",
+            min_value=1,
+            help="The Strava API returns your shoes in chunks of 30. Increment this field to go to the next page.",
+        )
+
+    with col2:
+        shoes = get_shoes(auth=auth, page=page)
+        if not shoes:
+            st.info("This Strava account has no shoes or you ran out of pages.")
+            st.stop()
+        default_shoe = {"name": DEFAULT_SHOE_LABEL, "start_date_local": ""}
+
+        shoe = st.selectbox(
+            label="Select a shoe",
+            options=[default_shoe] + shoes,
+            format_func=shoe_label,
+        )
+
+    if shoe["name"] == DEFAULT_SHOE_LABEL:
+        st.write("No shoe selected")
+        st.stop()
+
+    return shoe
+
+def get_athlete_zones(auth):
+    access_token = auth["access_token"]
+    response = httpx.get(
+        url=f"{STRAVA_API_BASE_URL}/athlete/zones",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+        }
+    )
+
+    return response.json()
 
 def select_strava_activity(auth):
-    col1, col2 = st.beta_columns([1, 3])
+    col1, col2 = st.columns([1, 3])
     with col1:
         page = st.number_input(
             label="Activities page",
@@ -219,9 +288,3 @@ def select_strava_activity(auth):
 
 
     return activity
-
-
-@st.cache(show_spinner=False, max_entries=30, allow_output_mutation=True)
-def download_activity(activity, strava_auth):
-    with st.spinner(f"Downloading activity \"{activity['name']}\"..."):
-        return sweat.read_strava(activity["id"], strava_auth["access_token"])
