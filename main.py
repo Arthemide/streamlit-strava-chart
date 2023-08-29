@@ -26,34 +26,29 @@ if strava_auth is None:
 # analysis on shoes
 athlete = strava.get_athlete_detail(strava_auth)
 shoes = strava.get_shoes(athlete)
-shoes
-columns = [shoe["name"] for shoe in shoes]
-distance = [shoe["distance"] for shoe in shoes]
 
-selected_columns = st.multiselect(
+dict_shoes = {shoe["name"]: shoe["converted_distance"] for shoe in shoes}
+
+all_shoes_names = dict_shoes.keys()
+selected_shoes = st.multiselect(
     label="Select columns to plot",
-    options=columns,
+    options=all_shoes_names,
 )
 
-selected_distance = [distance[selected_columns.index(column)] for column in selected_columns]
-selected_columns
-selected_distance
-if selected_columns:
-    chart_data = pd.DataFrame(
-        [selected_distance],
-        columns=selected_columns
-    )
-    st.bar_chart(chart_data,
-                 # x="Shoes",
-                 # y="Distance in meters"
-                )
+distances = [dict_shoes[shoe_name] for shoe_name in selected_shoes]
+if selected_shoes:
+    chart_data = pd.DataFrame({
+        'index':selected_shoes,
+        'kilometers':distances
+    })
+    st.bar_chart(chart_data)
 else:
     st.write("No column(s) selected")
 
 # activity = strava.select_strava_activity(strava_auth)
 
-# analysis on zones
-athlete_zones = strava.get_athlete_zones(strava_auth)
-if athlete_zones:
-    st.success("Athlete zones")
-    st.write(athlete_zones)
+# # analysis on zones
+# athlete_zones = strava.get_athlete_zones(strava_auth)
+# if athlete_zones:
+#     st.success("Athlete zones")
+#     st.write(athlete_zones)
