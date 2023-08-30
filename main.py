@@ -47,8 +47,45 @@ else:
 
 # activity = strava.select_strava_activity(strava_auth)
 
-# # analysis on zones
+# analysis on zones
 # athlete_zones = strava.get_athlete_zones(strava_auth)
 # if athlete_zones:
 #     st.success("Athlete zones")
 #     st.write(athlete_zones)
+
+
+# get activities on a period
+st.divider()
+
+start_date, end_date = find_default_publish_start_end_date()
+activities = strava.get_activities(strava_auth)[:3]
+st.write(f"You got {len(activities)} activities")
+
+activity_zones = strava.get_activity_zones(strava_auth, activities[0]["id"])
+
+dict_zones = {idx: zone["time"] // 60 for idx, zone in enumerate(activity_zones[0]["distribution_buckets"])}
+dict_zones
+
+zones_data = pd.DataFrame({
+    'zones': ["zone 1", "zone 2", "zone 3", "zone 4", "zone 5"],
+    'minutes': dict_zones.values()
+})
+zones_data
+
+scale = alt.Scale(
+    domain=["zone 1", "zone 2", "zone 3", "zone 4", "zone 5"],
+    range=["#008000", "#ffcf3e", "#f67200", "#ee1010", "#3f2204"],
+)
+color = alt.Color("zones:N", scale=scale)
+
+bars = (
+    alt.Chart(zones_data)
+    .mark_bar()
+    .encode(
+        x="zones",
+        y="minutes",
+        color=color,
+    )
+)
+
+st.altair_chart(bars, theme="streamlit", use_container_width=True)

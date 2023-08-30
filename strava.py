@@ -5,7 +5,6 @@ import arrow
 import httpx
 import streamlit as st
 from bokeh.models.widgets import Div
-
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -191,7 +190,7 @@ def get_activities(auth, page=1):
     response = httpx.get(
         url=f"{STRAVA_API_BASE_URL}/athlete/activities",
         params={
-            "page": page,
+            "page": page
         },
         headers={
             "Authorization": f"Bearer {access_token}",
@@ -200,7 +199,41 @@ def get_activities(auth, page=1):
 
     return response.json()
 
-# /activities/{id}/zones
+@st.cache_data(show_spinner=False)
+def get_all_activities(auth):
+    access_token = auth["access_token"]
+
+    page = 1
+    activities = []
+    while True:
+        response = httpx.get(
+            url=f"{STRAVA_API_BASE_URL}/athlete/activities",
+            params={
+                "page": page,
+                "per_page": 200
+            },
+            headers={
+                "Authorization": f"Bearer {access_token}",
+            },
+        )
+        new_activities = response.json()
+        activities.append(new_activities)
+        if len(new_activities) == 0:
+            break
+        page += 1
+
+    return activities
+
+def get_activity_zones(auth, activity_id):
+    access_token = auth["access_token"]
+
+    response = httpx.get(
+        url=f"{STRAVA_API_BASE_URL}/activities/{activity_id}/zones",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+        },
+    )
+    return response.json()
 
 
 def activity_label(activity):
@@ -252,6 +285,12 @@ def get_athlete_zones(auth):
 
     return response.json()
 
+# def export_all_activities(auth):
+#     activities = get_all_activities(auth=auth)
+#     st.write(f"You got {len(activities)} activities")
+#     with open('activities.json', 'w') as f:
+#         json.dump(activities, f)
+
 def select_strava_activity(auth):
     col1, col2 = st.columns([1, 3])
     with col1:
@@ -263,6 +302,9 @@ def select_strava_activity(auth):
 
     with col2:
         activities = get_activities(auth=auth, page=page)
+
+        # st.button("Export all activities", on_click=export_all_activities, args=(auth,))
+
         if not activities:
             st.info("This Strava account has no activities or you ran out of pages.")
             st.stop()
