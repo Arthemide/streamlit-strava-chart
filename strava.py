@@ -156,38 +156,47 @@ def header():
 
     return col1, col2, col3, strava_button
 
-@st.cache_data
-def get_athlete_detail(auth, page=1):
+def catch_strava_api_error(response):
+    if response.status_code == 200:
+        return
+    st.write(response.status_code)
+    if response.status_code == 401:
+        st.error("You are not authorized to access this resource. Please relog yourself.")
+        st.stop()
+        return
+    else:
+        st.error(response)
+        if response["errors"]:
+            st.error(f"Something went wrong while fetching data from Strava. Please reload and try again (error message: {response['message']})")
+            st.stop()
+            return
+
+def strava_call(auth, uri_params, params = None):
     access_token = auth["access_token"]
     response = httpx.get(
-        url=f"{STRAVA_API_BASE_URL}/athlete",
+        url=f"{STRAVA_API_BASE_URL}/{uri_params}",
+        params=params,
         headers={
             "Authorization": f"Bearer {access_token}",
         },
     )
-
+    catch_strava_api_error(response)
     return response.json()
 
 @st.cache_data
+def get_athlete_detail(auth, page=1):
+    return strava_call(auth, "athlete")
+
+@st.cache_data
 def get_shoes(athlete):
-    print(athlete)
     return athlete["shoes"]
 
 @st.cache_data
 def get_activity(activity_id, auth):
-    access_token = auth["access_token"]
-    response = httpx.get(
-        url=f"{STRAVA_API_BASE_URL}/activities/{activity_id}",
-        headers={
-            "Authorization": f"Bearer {access_token}",
-        },
-    )
-
-    return response.json()
+    return strava_call(auth, f"activities/{activity_id}")
 
 @st.cache_data
 def get_activities_on_period(auth, activities, start_date, end_date, page):
-    # make sure that if the change the start date or the end date, we don't get the same activities again
     response = get_activities(auth, page)
     number_added = 0
     for activity in response:
@@ -202,151 +211,34 @@ def get_activities_on_period(auth, activities, start_date, end_date, page):
 
 @st.cache_data
 def get_activities(auth, page=1):
-    access_token = auth["access_token"]
-    response = httpx.get(
-        url=f"{STRAVA_API_BASE_URL}/athlete/activities",
-        params={
-            "page": page
-        },
-        headers={
-            "Authorization": f"Bearer {access_token}",
-        },
-    )
-
-    return response.json()
-
-@st.cache_data
-def get_all_activities(auth):
-    access_token = auth["access_token"]
-
-    page = 1
-    activities = []
-    while True:
-        response = httpx.get(
-            url=f"{STRAVA_API_BASE_URL}/athlete/activities",
-            params={
-                "page": page,
-                "per_page": 200
-            },
-            headers={
-                "Authorization": f"Bearer {access_token}",
-            },
-        )
-        new_activities = response.json()
-        activities.append(new_activities)
-        if len(new_activities) == 0:
-            break
-        page += 1
-
-    return activities
+    return strava_call(auth, f"athlete/activities", params={"page": page})
 
 @st.cache_data
 def get_activity_zones(auth, activity_id):
-    access_token = auth["access_token"]
-
-    response = httpx.get(
-        url=f"{STRAVA_API_BASE_URL}/activities/{activity_id}/zones",
-        headers={
-            "Authorization": f"Bearer {access_token}",
-        },
-    )
-    return response.json()
-
-@st.cache_data
-def activity_label(activity):
-    if activity["name"] == DEFAULT_ACTIVITY_LABEL:
-        return ""
-
-    start_date = arrow.get(activity["start_date_local"])
-    human_readable_date = start_date.humanize(granularity=["day"])
-    date_string = start_date.format("YYYY-MM-DD")
-
-    return f"{activity['name']} - {date_string} ({human_readable_date})"
-
-@st.cache_data
-def select_strava_shoes(auth):
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        page = st.number_input(
-            label="Shoes page",
-            min_value=1,
-            help="The Strava API returns your shoes in chunks of 30. Increment this field to go to the next page.",
-        )
-
-    with col2:
-        shoes = get_shoes(auth=auth, page=page)
-        if not shoes:
-            st.info("This Strava account has no shoes or you ran out of pages.")
-            st.stop()
-        default_shoe = {"name": DEFAULT_SHOE_LABEL, "start_date_local": ""}
-
-        shoe = st.selectbox(
-            label="Select a shoe",
-            options=[default_shoe] + shoes,
-            format_func=shoe_label,
-        )
-
-    if shoe["name"] == DEFAULT_SHOE_LABEL:
-        st.write("No shoe selected")
-        st.stop()
-
-    return shoe
+    return strava_call(auth, f"activities/{activity_id}/zones")
 
 @st.cache_data
 def get_athlete_zones(auth):
-    access_token = auth["access_token"]
-    response = httpx.get(
-        url=f"{STRAVA_API_BASE_URL}/athlete/zones",
-        headers={
-            "Authorization": f"Bearer {access_token}",
-        }
-    )
+    return strava_call(auth, f"athlete/zones")
 
-    return response.json()
+# @st.cache_data
+# def get_all_activities(auth):
+#     page = 1
+#     activities = []
+#     while True:
+#         new_activities = strava_call(auth, f"athlete/activities", params={
+#                 "page": page,
+#                 "per_page": 200
+#             })
+#         activities.append(new_activities)
+#         if len(new_activities) == 0:
+#             break
+#         page += 1
+#
+#     return activities
 
 # def export_all_activities(auth):
 #     activities = get_all_activities(auth=auth)
 #     st.write(f"You got {len(activities)} activities")
 #     with open('activities.json', 'w') as f:
 #         json.dump(activities, f)
-
-@st.cache_data
-def select_strava_activity(auth):
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        page = st.number_input(
-            label="Activities page",
-            min_value=1,
-            help="The Strava API returns your activities in chunks of 30. Increment this field to go to the next page.",
-        )
-
-    with col2:
-        activities = get_activities(auth=auth, page=page)
-
-        # st.button("Export all activities", on_click=export_all_activities, args=(auth,))
-
-        if not activities:
-            st.info("This Strava account has no activities or you ran out of pages.")
-            st.stop()
-        default_activity = {"name": DEFAULT_ACTIVITY_LABEL, "start_date_local": ""}
-
-        activity = st.selectbox(
-            label="Select an activity",
-            options=[default_activity] + activities,
-            format_func=activity_label,
-        )
-
-    if activity["name"] == DEFAULT_ACTIVITY_LABEL:
-        st.write("No activity selected")
-        st.stop()
-        return
-
-    activity_url = f"https://www.strava.com/activities/{activity['id']}"
-        
-    st.markdown(
-        f"<a href=\"{activity_url}\" style=\"color:{STRAVA_ORANGE};\">View on Strava</a>",
-        unsafe_allow_html=True
-    )
-
-
-    return activity
