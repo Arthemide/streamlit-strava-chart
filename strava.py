@@ -20,7 +20,7 @@ STRAVA_ORANGE = "#fc4c02"
 
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data
 def load_image_as_base64(image_path):
     with open(image_path, "rb") as f:
         contents = f.read()
@@ -34,7 +34,7 @@ def powered_by_strava_logo():
         unsafe_allow_html=True,
     )
 
-
+@st.cache_data
 def authorization_url():
     request = httpx.Request(
         method="GET",
@@ -104,7 +104,7 @@ def logged_in_title(strava_auth, header=None):
     col.markdown(f"*Welcome, {first_name} {last_name}!*")
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data
 def exchange_authorization_code(authorization_code):
     response = httpx.post(
         url="https://www.strava.com/oauth/token",
@@ -126,7 +126,6 @@ def exchange_authorization_code(authorization_code):
     strava_auth = response.json()
 
     return strava_auth
-
 
 def authenticate(header=None, stop_if_unauthenticated=True):
     query_params = st.experimental_get_query_params()
@@ -157,7 +156,7 @@ def header():
 
     return col1, col2, col3, strava_button
 
-@st.cache_data(show_spinner=False)
+@st.cache_data
 def get_athlete_detail(auth, page=1):
     access_token = auth["access_token"]
     response = httpx.get(
@@ -169,10 +168,12 @@ def get_athlete_detail(auth, page=1):
 
     return response.json()
 
+@st.cache_data
 def get_shoes(athlete):
     print(athlete)
     return athlete["shoes"]
 
+@st.cache_data
 def get_activity(activity_id, auth):
     access_token = auth["access_token"]
     response = httpx.get(
@@ -184,7 +185,9 @@ def get_activity(activity_id, auth):
 
     return response.json()
 
+@st.cache_data
 def get_activities_on_period(auth, activities, start_date, end_date, page):
+    # make sure that if the change the start date or the end date, we don't get the same activities again
     response = get_activities(auth, page)
     number_added = 0
     for activity in response:
@@ -197,7 +200,7 @@ def get_activities_on_period(auth, activities, start_date, end_date, page):
     else:
         return get_activities_on_period(auth, activities, start_date, end_date, page + 1)
 
-@st.cache_data(show_spinner=False)
+@st.cache_data
 def get_activities(auth, page=1):
     access_token = auth["access_token"]
     response = httpx.get(
@@ -212,7 +215,7 @@ def get_activities(auth, page=1):
 
     return response.json()
 
-@st.cache_data(show_spinner=False)
+@st.cache_data
 def get_all_activities(auth):
     access_token = auth["access_token"]
 
@@ -237,6 +240,7 @@ def get_all_activities(auth):
 
     return activities
 
+@st.cache_data
 def get_activity_zones(auth, activity_id):
     access_token = auth["access_token"]
 
@@ -248,7 +252,7 @@ def get_activity_zones(auth, activity_id):
     )
     return response.json()
 
-
+@st.cache_data
 def activity_label(activity):
     if activity["name"] == DEFAULT_ACTIVITY_LABEL:
         return ""
@@ -259,6 +263,7 @@ def activity_label(activity):
 
     return f"{activity['name']} - {date_string} ({human_readable_date})"
 
+@st.cache_data
 def select_strava_shoes(auth):
     col1, col2 = st.columns([1, 3])
     with col1:
@@ -287,6 +292,7 @@ def select_strava_shoes(auth):
 
     return shoe
 
+@st.cache_data
 def get_athlete_zones(auth):
     access_token = auth["access_token"]
     response = httpx.get(
@@ -304,6 +310,7 @@ def get_athlete_zones(auth):
 #     with open('activities.json', 'w') as f:
 #         json.dump(activities, f)
 
+@st.cache_data
 def select_strava_activity(auth):
     col1, col2 = st.columns([1, 3])
     with col1:

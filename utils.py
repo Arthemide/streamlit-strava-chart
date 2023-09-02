@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
+import streamlit as st
 
+@st.cache_data
 def find_default_publish_start_end_date():
     today = datetime.now()
     start = today - timedelta(days=today.weekday())
