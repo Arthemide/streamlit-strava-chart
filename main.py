@@ -56,21 +56,40 @@ else:
 
 # get activities on a period
 st.divider()
+st.header("Display zones on a period")
 
 start_date, end_date = find_default_publish_start_end_date()
-activities = strava.get_activities(strava_auth)[:3]
+
+col_start_date, col_end_date = st.columns(2)
+with col_start_date:
+    real_start_date = st.date_input("Start date", value=start_date, min_value=None, max_value=None, key=None)
+with col_end_date:
+    real_end_date = st.date_input("End date", value=end_date, min_value=None, max_value=None, key=None)
+if real_start_date > real_end_date:
+    st.error("Error: End date must fall after start date.")
+else:
+    activities = strava.get_activities_on_period(strava_auth, [], real_start_date, real_end_date, 1)
+
 st.write(f"You got {len(activities)} activities")
 
-activity_zones = strava.get_activity_zones(strava_auth, activities[0]["id"])
+activities_zones = {}
+for activity in activities:
+    if not activity["has_heartrate"]:
+        continue
+    try:
+        activity_zones = strava.get_activity_zones(strava_auth, activity["id"])[0]["distribution_buckets"]
+    except Exception as e:
+        st.write(e)
+    if not activities_zones:
+        activities_zones = {idx: zone["time"] // 60 for idx, zone in enumerate(activity_zones)}
+    else:
+        for idx, zone in enumerate(activity_zones):
+            activities_zones[idx] += (zone["time"] // 60)
 
-dict_zones = {idx: zone["time"] // 60 for idx, zone in enumerate(activity_zones[0]["distribution_buckets"])}
-dict_zones
-
-zones_data = pd.DataFrame({
+zones_df = pd.DataFrame({
     'zones': ["zone 1", "zone 2", "zone 3", "zone 4", "zone 5"],
-    'minutes': dict_zones.values()
+    'minutes': activities_zones.values()
 })
-zones_data
 
 scale = alt.Scale(
     domain=["zone 1", "zone 2", "zone 3", "zone 4", "zone 5"],
@@ -79,7 +98,7 @@ scale = alt.Scale(
 color = alt.Color("zones:N", scale=scale)
 
 bars = (
-    alt.Chart(zones_data)
+    alt.Chart(zones_df)
     .mark_bar()
     .encode(
         x="zones",

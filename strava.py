@@ -6,7 +6,7 @@ import httpx
 import streamlit as st
 from bokeh.models.widgets import Div
 from dotenv import load_dotenv
-
+from datetime import datetime
 load_dotenv()
 
 APP_URL = os.environ["APP_URL"]
@@ -183,6 +183,19 @@ def get_activity(activity_id, auth):
     )
 
     return response.json()
+
+def get_activities_on_period(auth, activities, start_date, end_date, page):
+    response = get_activities(auth, page)
+    number_added = 0
+    for activity in response:
+        strava_start_date = datetime.strptime(activity["start_date"], '%Y-%m-%dT%H:%M:%SZ').date()
+        if strava_start_date >= start_date and strava_start_date <= end_date:
+            activities.append(activity)
+            number_added += 1
+    if number_added == 0:
+        return activities
+    else:
+        return get_activities_on_period(auth, activities, start_date, end_date, page + 1)
 
 @st.cache_data(show_spinner=False)
 def get_activities(auth, page=1):
